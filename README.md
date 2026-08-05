@@ -1,18 +1,38 @@
-# TERSEY · lite
+# ТЕРМИНАЛ · lite
 
-Самый лёгкий терминал в мире: нативное macOS-приложение для общения с Claude Code и Codex.
-Один Swift-файл (~600 строк) + вращающийся куб на чистом arm64-ассемблере. Бинарник ~220 КБ.
+A tiny native macOS window that sends one prompt to the locally installed
+Claude and Codex CLIs and places both answers side by side.
 
-## Сборка
+The project ships two ARM64 variants:
+
+- `TerminalLite`: the smallest build.
+- `TerminalLiteModels`: the same idea with Claude and Codex model selectors.
+
+## Privacy
+
+No API key, login token, session database, or personal path is bundled. Before
+starting either CLI, ТЕРМИНАЛ removes Claude and OpenAI/Codex API-key variables
+from the child environment. Each user signs in to their own local CLI install.
+
+## Build
+
+Requires macOS 13+, Xcode Command Line Tools, and Apple silicon.
 
 ```sh
-./build.sh
+./native/build.sh
 ```
 
-Соберёт `TerseyLite` и поставит `~/Applications/TerseyLite.app` (подпись ad-hoc;
-свой сертификат: `IDENTITY="Apple Development: ..." ./build.sh`).
+The script creates raw ARM64 executables and ad-hoc-signed `.app` archives in
+`public/downloads/`.
 
-Никаких ключей внутри нет: приложение использует подписочный логин установленных
-CLI `claude` / `codex` (переменная `ANTHROPIC_API_KEY` намеренно вычищается из окружения).
+## Run from source
 
-Требования: macOS 13+, Xcode Command Line Tools, установленные CLI `claude` и/или `codex`.
+Install and sign in to the `claude` and `codex` CLIs, then launch either app.
+macOS may require Control-click → Open for an ad-hoc-signed download.
+
+## Repository map
+
+- `native/base/` — smallest AppKit implementation.
+- `native/model-switcher/` — compact implementation with model selectors.
+- `public/downloads/` — reproducible binaries and zipped app bundles.
+- `app/` — product website.

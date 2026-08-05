@@ -1,10 +1,10 @@
 #!/usr/bin/env swift
-// Tersey Lite — тончайшая коробка: один ввод → и Claude, и Codex отвечают.
+// Терминал Lite — тончайшая коробка: один ввод → и Claude, и Codex отвечают.
 // Нативный AppKit, один файл + cube.s (фейковое 3D на рукописном ARM64-асме).
-// Сборка:  clang -c cube.s -o cube.o && swiftc -O terseylite.swift cube.o -o TerseyLite
+// Сборка:  clang -c cube.s -o cube.o && swiftc -O terseylite.swift cube.o -o TerminalLite
 import AppKit
 
-// ── палитра (светлая, как у большого Tersey) ─────────────────────────────
+// ── палитра (светлая, как у большого Терминал) ─────────────────────────────
 func hex(_ h: String) -> NSColor {
     var v: UInt64 = 0
     Scanner(string: String(h.dropFirst())).scanHexInt64(&v)
@@ -15,12 +15,9 @@ func hex(_ h: String) -> NSColor {
 let BG = hex("#faf9f5"), FG = hex("#1a1a18"), MUT = hex("#8a8778"), LINE = hex("#e3e0d6")
 let CLA = hex("#c96442"), COD = hex("#2f7d6b"), OKC = hex("#3a8a4a"), ERRC = hex("#c0392b")
 
-let selfPath = #filePath
 func weightKB() -> String {
-    var sz = (try? FileManager.default.attributesOfItem(atPath: selfPath))?[.size] as? Int ?? 0
-    if sz == 0, let exe = Bundle.main.executablePath { // из .app исходника не видно — вес бинарника
-        sz = (try? FileManager.default.attributesOfItem(atPath: exe))?[.size] as? Int ?? 0
-    }
+    let exe = Bundle.main.executablePath ?? CommandLine.arguments.first ?? ""
+    let sz = (try? FileManager.default.attributesOfItem(atPath: exe)[.size]) as? Int ?? 0
     return String(format: "вес: %.1f КБ", Double(sz) / 1024)
 }
 
@@ -63,22 +60,29 @@ final class CubeView: NSView {
 }
 
 // ── поиск CLI и запуск ───────────────────────────────────────────────────
-func findBin(_ name: String, _ extra: [String]) -> String {
+func findBin(_ name: String) -> String {
     let home = NSHomeDirectory()
-    var cands = extra.map { $0.replacingOccurrences(of: "~", with: home) }
+    var cands = ["\(home)/.local/bin/\(name)",
+                 "/opt/homebrew/bin/\(name)",
+                 "/usr/local/bin/\(name)"]
     for dir in (ProcessInfo.processInfo.environment["PATH"] ?? "").split(separator: ":") {
         cands.append("\(dir)/\(name)")
     }
     return cands.first { FileManager.default.isExecutableFile(atPath: $0) } ?? name
 }
-let claudeBin = findBin("claude", ["~/.local/bin/claude"])
-let codexBin = findBin("codex", ["~/.local/opt/node-v22.23.1-darwin-arm64/bin/codex"])
+let claudeBin = findBin("claude")
+let codexBin = findBin("codex")
 
 // окружение для CLI: codex.js стартует через `env node`, а node у GUI-процессов
 // не в PATH — подкладываем каталоги обоих найденных бинарников
 func cliEnv() -> [String: String] {
     var env = ProcessInfo.processInfo.environment
-    env.removeValue(forKey: "ANTHROPIC_API_KEY") // placeholder перебивает подписочный логин
+    // Не передаём API-ключи из окружения создателя/сборщика. Каждый пользователь
+    // входит в установленные Claude/Codex CLI самостоятельно.
+    for key in ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "CLAUDE_API_KEY",
+                "OPENAI_API_KEY", "OPENAI_ORG_ID", "OPENAI_PROJECT_ID", "CODEX_API_KEY"] {
+        env.removeValue(forKey: key)
+    }
     let dirs = [claudeBin, codexBin].map { ($0 as NSString).deletingLastPathComponent }
         .filter { !$0.isEmpty }
     env["PATH"] = (dirs + [env["PATH"] ?? ""]).joined(separator: ":")
@@ -169,6 +173,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var labC: NSTextField!, labX: NSTextField!
     var metaC: NSTextField!, metaX: NSTextField!
     var modeSeg: NSSegmentedControl!, effortSeg: NSSegmentedControl!
+    var modelPopC: NSPopUpButton!, modelPopX: NSPopUpButton!
     var dirBtn: NSButton!
     var pending = 0
     // ── фейковое 3D всей аппы: CALayer-перспектива + параллакс за мышкой ──
@@ -179,10 +184,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // состояние текущего запроса (трогаем только с main)
     var metaEndC = "", okC = true, gotTextC = false
     var tokensX = "", gotTextX = false
-    // рабочая папка агентов; при запуске из .app cwd = "/", тогда — ~/Avatar
+    // Рабочая папка агентов; при запуске из .app cwd = "/", тогда — домашняя.
     var workDir: URL = {
         let cwd = FileManager.default.currentDirectoryPath
-        return URL(fileURLWithPath: cwd == "/" ? NSHomeDirectory() + "/Avatar" : cwd)
+        return URL(fileURLWithPath: cwd == "/" ? NSHomeDirectory() : cwd)
     }()
 
     let mono = NSFont(name: "Menlo", size: 13) ?? .monospacedSystemFont(ofSize: 13, weight: .regular)
@@ -191,6 +196,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     var isWork: Bool { modeSeg.selectedSegment == 1 }
     var effort: String { ["low", "medium", "high"][effortSeg.selectedSegment] }
+    // выбор модели: пустая строка = дефолт CLI (у claude — настройка подписки,
+    // у codex — model из ~/.codex/config.toml)
+    let modelsC = ["", "fable", "opus", "sonnet", "haiku"]
+    let modelsX = ["", "gpt-5.6-sol", "gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.6-pro"]
+    var modelC: String { modelsC[max(0, modelPopC.indexOfSelectedItem)] }
+    var modelX: String { modelsX[max(0, modelPopX.indexOfSelectedItem)] }
+
+    func modelPop(_ titles: [String]) -> NSPopUpButton {
+        let p = NSPopUpButton(frame: .zero, pullsDown: false)
+        p.addItems(withTitles: titles)
+        p.font = small
+        p.controlSize = .small
+        p.setContentHuggingPriority(.required, for: .horizontal)
+        return p
+    }
 
     func label(_ text: String, _ color: NSColor, _ f: NSFont) -> NSTextField {
         let l = NSTextField(labelWithString: text)
@@ -219,7 +239,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ n: Notification) {
         let menu = NSMenu(), appItem = NSMenuItem()
         let sub = NSMenu()
-        sub.addItem(withTitle: "Quit TERSEY · lite", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        sub.addItem(withTitle: "Quit ТЕРМИНАЛ · lite", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         appItem.submenu = sub; menu.addItem(appItem)
         // Edit-меню — без него Cmd+C/V/X/A не работают в поле ввода
         let editItem = NSMenuItem()
@@ -234,18 +254,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 940, height: 620),
                           styleMask: [.titled, .closable, .miniaturizable, .resizable],
                           backing: .buffered, defer: false)
-        window.title = "TERSEY · lite"
+        window.title = "ТЕРМИНАЛ · lite"
         window.minSize = NSSize(width: 700, height: 460)
         window.backgroundColor = BG
         window.center()
-        if let scr = NSScreen.main { // --left/--right = своя половина монитора
-            let vf = scr.visibleFrame
-            let half = NSRect(x: vf.minX, y: vf.minY, width: vf.width / 2, height: vf.height)
-            if CommandLine.arguments.contains("--left") { window.setFrame(half, display: true) }
-            else if CommandLine.arguments.contains("--right") {
-                window.setFrame(half.offsetBy(dx: vf.width / 2, dy: 0), display: true)
-            }
-        }
 
         let root = NSStackView()
         root.orientation = .vertical
@@ -286,7 +298,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         t3.state = .on
         t3.font = small
         head.addView(CubeView(frame: .zero), in: .leading)
-        head.addView(label("TERSEY · lite", FG, monob), in: .leading)
+        head.addView(label("ТЕРМИНАЛ · lite", FG, monob), in: .leading)
         head.addView(label(weightKB(), OKC, small), in: .leading)
         head.addView(modeSeg, in: .center)
         head.addView(effortSeg, in: .center)
@@ -301,12 +313,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         sep.heightAnchor.constraint(equalToConstant: 1).isActive = true
         root.addArrangedSubview(sep); full(sep)
 
-        // заголовки колонок
+        // заголовки колонок: имя + версия слева, выбор модели справа
         labC = label("CLAUDE", CLA, small)
         labX = label("CODEX", COD, small)
-        let heads = NSStackView(views: [labC, labX])
+        modelPopC = modelPop(["авто", "fable", "opus", "sonnet", "haiku"])
+        modelPopX = modelPop(["авто", "sol", "luna", "terra", "pro"])
+        modelPopC.toolTip = "модель Claude (авто = дефолт подписки)"
+        modelPopX.toolTip = "модель Codex (авто = из ~/.codex/config.toml)"
+        let headC = NSStackView(views: [labC, modelPopC])
+        let headX = NSStackView(views: [labX, modelPopX])
+        for h in [headC, headX] {
+            h.orientation = .horizontal
+            h.spacing = 6
+        }
+        labC.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        labX.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        let heads = NSStackView(views: [headC, headX])
         heads.orientation = .horizontal
         heads.distribution = .fillEqually
+        heads.spacing = 10
         root.addArrangedSubview(heads); full(heads)
 
         // две панели вывода (транскрипт диалога)
@@ -425,6 +450,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         tokensX = ""; gotTextX = false
 
         let work = isWork, eff = effort
+        let mC = modelC, mX = modelX
         let permC = work ? "bypass" : "plan"
         let resumeC = sessC, resumeX = sessX
         let dir = workDir
@@ -433,6 +459,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         DispatchQueue.global().async {
             var argv = [claudeBin, "-p", prompt, "--output-format", "stream-json",
                         "--include-partial-messages", "--verbose", "--effort", eff]
+            if !mC.isEmpty { argv += ["--model", mC] }
             if let s = resumeC { argv += ["--resume", s] }
             argv += work ? ["--dangerously-skip-permissions"] : ["--permission-mode", "plan"]
             let r = streamCLI(argv, cwd: dir, timeout: 600) { line in
@@ -457,7 +484,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             var argv = [codexBin, "exec"]
             if let s = resumeX { argv += ["resume", s] }
             argv += ["--skip-git-repo-check", "--json", "-c", "model_reasoning_effort=\"\(eff)\""]
-            // у сабкоманды resume нет флага --sandbox, поэтому всюду через -c
+            // у сабкоманды resume нет флагов --sandbox/-m, поэтому всюду через -c
+            if !mX.isEmpty { argv += ["-c", "model=\"\(mX)\""] }
             argv += work ? ["--dangerously-bypass-approvals-and-sandbox"]
                 : ["-c", "sandbox_mode=\"read-only\""]
             argv.append(prompt)
