@@ -15,12 +15,12 @@ export async function generateMetadata(): Promise<Metadata> {
 
   return {
     metadataBase: base,
-    title: "ТЕРМИНАЛ · lite — One prompt. Two minds. 219.8 KiB.",
+    title: "ТЕРМИНАЛ · lite – One prompt. Two minds. 219.8 KiB.",
     description: "A brutally small native macOS window for Claude and Codex.",
     openGraph: {
       title: "ТЕРМИНАЛ · lite",
       description: "One prompt. Two minds. 219.8 KiB.",
-      images: [{ url: image, width: 1728, height: 910, alt: "ТЕРМИНАЛ lite — 219.8 KiB" }],
+      images: [{ url: image, width: 1728, height: 910, alt: "ТЕРМИНАЛ lite – 219.8 KiB" }],
     },
     twitter: { card: "summary_large_image", images: [image] },
   };

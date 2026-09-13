@@ -1,5 +1,5 @@
 #!/usr/bin/env swift
-// Терминал Lite — тончайшая коробка: один ввод → и Claude, и Codex отвечают.
+// Терминал Lite – тончайшая коробка: один ввод → и Claude, и Codex отвечают.
 // Нативный AppKit, один файл + cube.s (фейковое 3D на рукописном ARM64-асме).
 // Сборка:  clang -c cube.s -o cube.o && swiftc -O terseylite.swift cube.o -o TerminalLite
 import AppKit
@@ -74,7 +74,7 @@ let claudeBin = findBin("claude")
 let codexBin = findBin("codex")
 
 // окружение для CLI: codex.js стартует через `env node`, а node у GUI-процессов
-// не в PATH — подкладываем каталоги обоих найденных бинарников
+// не в PATH – подкладываем каталоги обоих найденных бинарников
 func cliEnv() -> [String: String] {
     var env = ProcessInfo.processInfo.environment
     // Не передаём API-ключи из окружения создателя/сборщика. Каждый пользователь
@@ -183,7 +183,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // состояние текущего запроса (трогаем только с main)
     var metaEndC = "", okC = true, gotTextC = false
     var tokensX = "", gotTextX = false
-    // Рабочая папка агентов; при запуске из .app cwd = "/", тогда — домашняя.
+    // Рабочая папка агентов; при запуске из .app cwd = "/", тогда – домашняя.
     var workDir: URL = {
         let cwd = FileManager.default.currentDirectoryPath
         return URL(fileURLWithPath: cwd == "/" ? NSHomeDirectory() : cwd)
@@ -225,7 +225,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let sub = NSMenu()
         sub.addItem(withTitle: "Quit ТЕРМИНАЛ · lite", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         appItem.submenu = sub; menu.addItem(appItem)
-        // Edit-меню — без него Cmd+C/V/X/A не работают в поле ввода
+        // Edit-меню – без него Cmd+C/V/X/A не работают в поле ввода
         let editItem = NSMenuItem()
         let edit = NSMenu(title: "Edit")
         edit.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
@@ -345,10 +345,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         root.addArrangedSubview(bar); full(bar)
         entry.setContentHuggingPriority(.defaultLow, for: .horizontal)
 
-        // предзаполнено — просто нажми Отправить, чтобы проверить
+        // предзаполнено – просто нажми Отправить, чтобы проверить
         entry.stringValue = "Одним словом: столица Франции?"
 
-        // ── сцена фейкового 3D: панели — разворот книги, всё следит за мышкой ──
+        // ── сцена фейкового 3D: панели – разворот книги, всё следит за мышкой ──
         window.contentView!.wantsLayer = true
         tiltViews = [(root, 0), (svC, 0.11), (svX, -0.11)]
         for (v, _) in tiltViews {
@@ -375,7 +375,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.layoutIfNeeded()
         DispatchQueue.main.async { self.applyTilts() }
 
-        // версии CLI — подтягиваем асинхронно, не блокируя окно
+        // версии CLI – подтягиваем асинхронно, не блокируя окно
         DispatchQueue.global().async {
             let v = runCLI([claudeBin, "--version"], timeout: 20).out
                 .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -405,7 +405,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self.workDir = url
             self.dirBtn.title = "📁 \(url.lastPathComponent)"
             self.dirBtn.toolTip = url.path
-            self.reset() // сессии привязаны к папке — начинаем заново
+            self.reset() // сессии привязаны к папке – начинаем заново
         }
     }
 
@@ -559,7 +559,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     // перспектива через layer.transform: геометрия окна не меняется,
-    // GPU композитит бесплатно — вся «3D-сцена» стоит ноль CPU
+    // GPU композитит бесплатно – вся «3D-сцена» стоит ноль CPU
     func applyTilts() {
         for (v, base) in tiltViews {
             guard let l = v.layer else { continue }
@@ -572,7 +572,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             t = CATransform3DRotate(t, base + mouseDX * 0.10, 0, 1, 0)
             t = CATransform3DRotate(t, mouseDY * 0.08, 1, 0, 0)
             l.transform = t
-            if base != 0 { // тени глубины — только у наклонённых панелей
+            if base != 0 { // тени глубины – только у наклонённых панелей
                 l.shadowColor = NSColor.black.cgColor
                 l.shadowOpacity = 0.16
                 l.shadowRadius = 12

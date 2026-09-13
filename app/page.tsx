@@ -27,7 +27,7 @@ export default function Home() {
           <h1><span>One prompt.</span><br />Two minds.<br /><em>219.8 KiB.</em></h1>
           <p className="lede">
             A brutally small AppKit window for Claude and Codex. No Electron,
-            no webview, no account layer — just your local CLIs answering side by side.
+            no webview, no account layer – just your local CLIs answering side by side.
           </p>
           <div className="actions">
             <a className="button primary" href="/downloads/TerminalLite-macOS-arm64.zip">

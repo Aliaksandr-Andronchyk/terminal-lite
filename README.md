@@ -32,7 +32,7 @@ macOS may require Control-click → Open for an ad-hoc-signed download.
 
 ## Repository map
 
-- `native/base/` — smallest AppKit implementation.
-- `native/model-switcher/` — compact implementation with model selectors.
-- `public/downloads/` — reproducible binaries and zipped app bundles.
-- `app/` — product website.
+- `native/base/` – smallest AppKit implementation.
+- `native/model-switcher/` – compact implementation with model selectors.
+- `public/downloads/` – reproducible binaries and zipped app bundles.
+- `app/` – product website.
